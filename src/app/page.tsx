@@ -1,65 +1,98 @@
-import Image from "next/image";
+import type { Metadata } from "next";
+import { Suspense } from "react";
+import { Hero } from "@/features/product/components/hero";
+import { BrandBanner } from "@/features/product/components/brand-banner";
+import { ProblemAgitation } from "@/features/product/components/problem-agitation";
+import { VideoShowcase } from "@/features/product/components/video-showcase";
+import { ProductStory } from "@/features/product/components/product-story";
+import { UsageInstructions } from "@/features/product/components/usage-instructions";
+import { BenefitsGrid } from "@/features/product/components/benefits-grid";
+import { Gallery } from "@/features/product/components/gallery";
+import { ComparisonTable } from "@/features/product/components/comparison-table";
+import { PromoFlyer } from "@/features/product/components/promo-flyer";
+import { ReviewsSection } from "@/features/reviews/components/reviews-section";
+import { ReviewsSkeleton } from "@/features/reviews/components/reviews-skeleton";
+import { FaqAccordion } from "@/features/product/components/faq-accordion";
+import { GuaranteeBanner } from "@/features/product/components/guarantee-banner";
+import { PRODUCT, PRICING_TIERS } from "@/features/product/data/product";
+import { getStorefrontContent, getStorefrontMedia } from "@/lib/storefront-data";
+import { SITE } from "@/lib/constants";
 
-export default function Home() {
+export async function generateMetadata(): Promise<Metadata> {
+  const content = await getStorefrontContent();
+  return {
+    title: content.seo.title || PRODUCT.metaTitle,
+    description: content.seo.description || PRODUCT.metaDescription,
+    alternates: { canonical: "/" },
+  };
+}
+
+function ProductJsonLd() {
+  const cheapest = Math.min(...PRICING_TIERS.map((t) => t.price));
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@type": "Product",
+    name: PRODUCT.name,
+    brand: { "@type": "Brand", name: PRODUCT.brand },
+    description: PRODUCT.shortDescription,
+    offers: {
+      "@type": "AggregateOffer",
+      priceCurrency: SITE.currency,
+      lowPrice: cheapest,
+      highPrice: Math.max(...PRICING_TIERS.map((t) => t.price)),
+      offerCount: PRICING_TIERS.length,
+      availability: "https://schema.org/InStock",
+      url: SITE.url,
+    },
+  };
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
-    </div>
+    <script
+      type="application/ld+json"
+      dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+    />
+  );
+}
+
+export default async function Home() {
+  const [content, heroImages, storyImages, dayInLifeImages] = await Promise.all([
+    getStorefrontContent(),
+    getStorefrontMedia("hero_gallery"),
+    getStorefrontMedia("story"),
+    getStorefrontMedia("day_in_life"),
+  ]);
+
+  return (
+    <>
+      <ProductJsonLd />
+      <BrandBanner />
+      <Hero
+        heading={content.heroHeading}
+        description={content.heroDescription}
+        ctaLabel={content.heroCtaText}
+        images={heroImages.map((img) => ({ label: img.alt, assetSlot: img.id, src: img.url }))}
+      />
+      <ProblemAgitation />
+      <VideoShowcase video={content.video} />
+      <ProductStory images={storyImages.map((img) => ({ url: img.url, alt: img.alt }))} />
+      <UsageInstructions steps={content.usageSteps} />
+      <BenefitsGrid benefits={content.benefits} />
+      <Gallery
+        shots={dayInLifeImages.map((img) => ({ label: img.alt, assetSlot: img.id, src: img.url }))}
+      />
+      <ComparisonTable columns={content.comparisonTable.columns} rows={content.comparisonTable.rows} />
+      <PromoFlyer />
+      <div id="reviews">
+        <Suspense fallback={<ReviewsSkeleton />}>
+          <ReviewsSection />
+        </Suspense>
+      </div>
+      <FaqAccordion />
+      <GuaranteeBanner
+        title={content.guaranteeTitle}
+        description={content.guaranteeDescription}
+        trustBadges={content.trustBadges}
+      />
+    </>
   );
 }
