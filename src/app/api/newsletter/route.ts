@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createServiceClient } from "@/lib/supabase/server";
+import { rateLimit, getClientIp } from "@/lib/rate-limit";
 import type { NewsletterSubscriberInsert } from "@/lib/supabase/types";
 
 const schema = z.object({
@@ -9,6 +10,14 @@ const schema = z.object({
 });
 
 export async function POST(request: Request) {
+  const ip = getClientIp(request.headers);
+  if (!rateLimit(`newsletter:${ip}`, 5, 60 * 60_000).ok) {
+    return NextResponse.json(
+      { error: "Too many requests. Please try again later." },
+      { status: 429 }
+    );
+  }
+
   const body = await request.json().catch(() => null);
   const parsed = schema.safeParse(body);
 

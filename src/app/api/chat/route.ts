@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { askVelnoraAssistant, ChatNotConfiguredError, type ChatMessage } from "@/lib/gemini/server";
 import { getOrCreateConversation, saveAiMessage, saveCustomerMessage } from "@/lib/chat/store";
+import { rateLimit, getClientIp } from "@/lib/rate-limit";
 
 const messageSchema = z.object({
   role: z.enum(["user", "assistant"]),
@@ -15,6 +16,16 @@ const requestSchema = z.object({
 });
 
 export async function POST(request: Request) {
+  // Every message here costs a Gemini API call — cap it per IP so the
+  // widget can't be scripted into running up the bill or DoS-ing the key.
+  const ip = getClientIp(request.headers);
+  if (!rateLimit(`chat:${ip}`, 20, 60_000).ok) {
+    return NextResponse.json(
+      { error: "Too many messages. Please slow down a bit." },
+      { status: 429 }
+    );
+  }
+
   const body = await request.json().catch(() => null);
   const parsed = requestSchema.safeParse(body);
 

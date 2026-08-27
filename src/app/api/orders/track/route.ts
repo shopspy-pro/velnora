@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createServiceClient } from "@/lib/supabase/server";
+import { rateLimit, getClientIp } from "@/lib/rate-limit";
 import type { OrderItemRow, OrderRow } from "@/lib/supabase/types";
 
 const schema = z.object({
@@ -13,6 +14,15 @@ function normalizePhone(phone: string) {
 }
 
 export async function POST(request: Request) {
+  // Prevents brute-forcing the phone number for a known/guessed order number.
+  const ip = getClientIp(request.headers);
+  if (!rateLimit(`order-track:${ip}`, 10, 60_000).ok) {
+    return NextResponse.json(
+      { error: "Too many attempts. Please wait a moment and try again." },
+      { status: 429 }
+    );
+  }
+
   const body = await request.json().catch(() => null);
   const parsed = schema.safeParse(body);
 

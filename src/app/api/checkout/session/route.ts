@@ -4,8 +4,17 @@ import { resolveOrderLines } from "@/lib/orders";
 import { getStorefrontShipping } from "@/lib/storefront-data";
 import { resolveShippingFee } from "@/features/checkout/lib/shipping";
 import { getStripe } from "@/lib/stripe/server";
+import { rateLimit, getClientIp } from "@/lib/rate-limit";
 
 export async function POST(request: Request) {
+  const ip = getClientIp(request.headers);
+  if (!rateLimit(`checkout-session:${ip}`, 10, 60_000).ok) {
+    return NextResponse.json(
+      { error: "Too many requests. Please wait a moment and try again." },
+      { status: 429 }
+    );
+  }
+
   const body = await request.json().catch(() => null);
   const parsed = checkoutRequestSchema.safeParse(body);
 

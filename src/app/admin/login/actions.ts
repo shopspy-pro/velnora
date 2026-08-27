@@ -1,9 +1,11 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { headers } from "next/headers";
 import { createClient } from "@supabase/supabase-js";
 import { createServiceClient } from "@/lib/supabase/server";
 import { createAdminSession } from "@/lib/admin/session";
+import { rateLimit, getClientIp } from "@/lib/rate-limit";
 import type { AdminUserRow } from "@/lib/supabase/types";
 
 export interface LoginState {
@@ -19,6 +21,15 @@ export async function loginAction(
 
   if (!email || !password) {
     return { error: "Enter your email and password." };
+  }
+
+  // 5 attempts/minute per IP, and per email, so brute-forcing a password
+  // can't outrun either limiter by spreading across the other dimension.
+  const ip = getClientIp(await headers());
+  const ipLimit = rateLimit(`login-ip:${ip}`, 5, 60_000);
+  const emailLimit = rateLimit(`login-email:${email}`, 5, 60_000);
+  if (!ipLimit.ok || !emailLimit.ok) {
+    return { error: "Too many login attempts. Please wait a minute and try again." };
   }
 
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;

@@ -2,8 +2,17 @@ import { NextResponse } from "next/server";
 import { checkoutRequestSchema } from "@/lib/validations/checkout";
 import { createOrder } from "@/lib/orders";
 import { getStorefrontShipping } from "@/lib/storefront-data";
+import { rateLimit, getClientIp } from "@/lib/rate-limit";
 
 export async function POST(request: Request) {
+  const ip = getClientIp(request.headers);
+  if (!rateLimit(`checkout-cod:${ip}`, 10, 60_000).ok) {
+    return NextResponse.json(
+      { error: "Too many requests. Please wait a moment and try again." },
+      { status: 429 }
+    );
+  }
+
   const body = await request.json().catch(() => null);
   const parsed = checkoutRequestSchema.safeParse(body);
 
